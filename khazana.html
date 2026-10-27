@@ -3184,16 +3184,6 @@ async function loadCourses(courseRef, container) {
         );
       }
 
-      const isNextToppersBatch = container.closest(".subject-row")?.dataset.coaching === "Next Toppers";
-
-      // Update only Next Toppers batch links to the new LearnX URL format.
-      if (isNextToppersBatch && url) {
-        url = url.replace(
-          /^https?:\/\/next-toppersnt\.vercel\.app\/course\/([^/?#]+)\/?(?:\?[^#]*)?(?:#.*)?$/,
-          "https://www.learnxpw.site/study/nexttoppers/$1"
-        );
-      }
-
       const year = item?.year || "";
       card.dataset.url = url;
       card.dataset.batchKey = id;
