@@ -3089,6 +3089,16 @@ function getBatchNumber(batchKey = "") {
   return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
 }
 
+function normalizePWBatchUrl(url, coaching) {
+  const value = String(url || "");
+  if (coaching !== "Physics Wallah") return value;
+
+  return value.replace(
+    /^https?:\/\/deltastudy\.site\/study-v2\/batches\/([^/?]+)(?:\?[^#]*)?/,
+    "https://www.learnxpw.site/study/batches/$1"
+  );
+}
+
 window.loadGoalSearchData = async function(goal = window.currentGoal || "all") {
   const cacheKey = goal || "all";
   if (window.goalSearchCache[cacheKey]) {
@@ -3104,10 +3114,11 @@ window.loadGoalSearchData = async function(goal = window.currentGoal || "all") {
 
     const items = snapshot.val() || {};
     Object.entries(items).forEach(([batchKey, item]) => {
+      const originalUrl = item?.url || item?.link || item?.view || "";
       results.push({
         title: item?.title || "Untitled Course",
         year: item?.year ? String(item.year) : "",
-        url: item?.url || item?.link || item?.view || "",
+        url: normalizePWBatchUrl(originalUrl, branch.coaching),
         img: item?.img || item?.cover || item?.image || "",
         coaching: branch.coaching,
         goal: goal,
@@ -3173,16 +3184,9 @@ async function loadCourses(courseRef, container) {
 
       const title = item?.title || "Untitled Course";
       const image = item?.img || item?.cover || item?.image || "";
-      let url = item?.url || item?.link || item?.view || "";
-      const isPWBatch = container.closest(".subject-row")?.dataset.coaching === "Physics Wallah";
-
-      // Update only Physics Wallah batch links to the new LearnX PW URL format.
-      if (isPWBatch && url) {
-        url = url.replace(
-          /^https?:\/\/deltastudy\.site\/study-v2\/batches\/([^/?]+)(?:\?[^#]*)?/,
-          "https://www.learnxpw.site/study/batches/$1"
-        );
-      }
+      const originalUrl = item?.url || item?.link || item?.view || "";
+      const coaching = container.closest(".subject-row")?.dataset.coaching || "";
+      const url = normalizePWBatchUrl(originalUrl, coaching);
 
       const year = item?.year || "";
       card.dataset.url = url;
