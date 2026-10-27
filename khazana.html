@@ -3173,7 +3173,17 @@ async function loadCourses(courseRef, container) {
 
       const title = item?.title || "Untitled Course";
       const image = item?.img || item?.cover || item?.image || "";
-      const url = item?.url || item?.link || item?.view || "";
+      let url = item?.url || item?.link || item?.view || "";
+      const isPWBatch = container.closest(".subject-row")?.dataset.coaching === "Physics Wallah";
+
+      // Update only Physics Wallah batch links to the new LearnX PW URL format.
+      if (isPWBatch && url) {
+        url = url.replace(
+          /^https?:\/\/deltastudy\.site\/study-v2\/batches\/([^/?]+)(?:\?[^#]*)?/,
+          "https://www.learnxpw.site/study/batches/$1"
+        );
+      }
+
       const year = item?.year || "";
       card.dataset.url = url;
       card.dataset.batchKey = id;
