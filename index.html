@@ -482,35 +482,51 @@ async function saveUserToDatabase(user){
   }
 
 }
-/* Shiva AI account sync: send a BOOKStore Firebase ID token only to the trusted Shiva AI opener. */
-const isShivaSso = new URLSearchParams(window.location.search).get("shiva_sso") === "1";
-const shivaSsoOrigins = new Set([
-  "https://shiva-bookstore.vercel.app",
-  "https://shiva-ai-git-main-syntaxbhavesh.vercel.app",
-]);
-
-function getShivaSsoOrigin() {
-  if (!isShivaSso || !window.opener || window.opener.closed) return null;
+/* Shiva AI account sync: complete only after Shiva AI confirms the Firebase sign-in. */
+const shivaSsoParams = new URLSearchParams(window.location.search);
+const isShivaSso = shivaSsoParams.get("shiva_sso") === "1";
+const requestedShivaOrigin = shivaSsoParams.get("shiva_origin") || "";
+function isTrustedShivaOrigin(origin) {
   try {
-    const origin = new URL(document.referrer).origin;
-    return shivaSsoOrigins.has(origin) ? origin : null;
+    const url = new URL(origin);
+    return url.protocol === "https:" &&
+      /^(?:shiva-ai|shiva-bookstore)(?:-[a-z0-9-]+)?\.vercel\.app$/.test(url.hostname);
   } catch {
-    return null;
+    return false;
   }
 }
-
+function getShivaSsoOrigin() {
+  if (!isShivaSso || !window.opener || window.opener.closed) return null;
+  return isTrustedShivaOrigin(requestedShivaOrigin) ? requestedShivaOrigin : null;
+}
+let shivaSsoTokenSent = false;
+window.addEventListener("message", (event) => {
+  if (event.source !== window.opener || event.origin !== requestedShivaOrigin) return;
+  if (event.data?.type === "SHIVA_BOOKSTORE_SSO_SUCCESS") {
+    window.close();
+  } else if (event.data?.type === "SHIVA_BOOKSTORE_SSO_ERROR") {
+    showLoginError(event.data.message || "Shiva AI could not finish BOOKStore account sync. Please try again.");
+  }
+});
 async function sendBookstoreTokenToShiva(user) {
+  if (shivaSsoTokenSent) return true;
   const targetOrigin = getShivaSsoOrigin();
   if (!targetOrigin) {
     showLoginError("Could not verify the Shiva AI window. Close this popup and start Sync BOOKStore Account again from Shiva AI.");
     return false;
   }
-  const idToken = await user.getIdToken(true);
-  window.opener.postMessage({ type: "BOOKSTORE_SSO_TOKEN", idToken }, targetOrigin);
-  window.close();
-  return true;
+  shivaSsoTokenSent = true;
+  try {
+    const idToken = await user.getIdToken(true);
+    window.opener.postMessage({ type: "BOOKSTORE_SSO_TOKEN", idToken }, targetOrigin);
+    return true;
+  } catch (error) {
+    shivaSsoTokenSent = false;
+    showLoginError("Could not send your BOOKStore sign-in to Shiva AI. Please try again.");
+    console.error("BOOKStore SSO token send failed:", error);
+    return false;
+  }
 }
-
 /* AUTO LOGIN CHECK */
 onAuthStateChanged(auth, async (user) => {
   if (user) {
@@ -522,7 +538,6 @@ onAuthStateChanged(auth, async (user) => {
     window.location.replace("home.html");
     void saveUserToDatabase(user);
   } else if (isShivaSso) {
-    // Show the usual login dialog in the SSO popup; auth listener sends token after sign-in.
     openLogin();
   }
 });
