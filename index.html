@@ -563,7 +563,7 @@ const user=userCredential.user;
 
 set(ref(db,"users/"+user.uid+"/lastSeen"),Date.now());
 
-if (!isShivaSso) if (!isShivaSso) window.location.href="home.html";
+if (!isShivaSso) window.location.href="home.html";
 
 })
 
@@ -633,10 +633,10 @@ const user=userCredential.user;
 
 await saveUserToDatabase(user);
 
-window.location.href="home.html";
+if (!isShivaSso) window.location.href="home.html";
 
 
-window.location.href="home.html";
+if (!isShivaSso) window.location.href="home.html";
 
 })
 
@@ -660,7 +660,7 @@ window.handleCredentialResponse = async function(response) {
 
     await saveUserToDatabase(user);
 
-    window.location.href = "home.html";
+    if (!isShivaSso) window.location.href = "home.html";
 
   } catch (error) {
 
