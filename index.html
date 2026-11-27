@@ -482,21 +482,51 @@ async function saveUserToDatabase(user){
   }
 
 }
-/* AUTO LOGIN CHECK */
+/* Shiva AI account sync: existing BOOKStore sessions are sent automatically. */
+const isShivaSsoRequest = new URLSearchParams(window.location.search).get("shiva_sso") === "1";
+let shivaSsoSent = false;
 
-onAuthStateChanged(auth,(user)=>{
+async function sendBookstoreSessionToShiva(user) {
+  if (!isShivaSsoRequest || shivaSsoSent) return;
+  if (!window.opener || window.opener.closed) return;
 
-if(user){
+  try {
+    const referrerOrigin = document.referrer ? new URL(document.referrer).origin : "";
+    const allowedShivaOrigins = [
+      "https://shiva-bookstore.vercel.app",
+      "https://shiva-ai-git-main-syntaxbhavesh.vercel.app"
+    ];
+    const targetOrigin = allowedShivaOrigins.includes(referrerOrigin)
+      ? referrerOrigin
+      : allowedShivaOrigins[0];
 
-// redirect instantly
-window.location.replace("home.html");
+    const idToken = await user.getIdToken();
+    if (!window.opener || window.opener.closed) return;
 
-// save user data in background (no waiting)
-saveUserToDatabase(user);
-
+    shivaSsoSent = true;
+    window.opener.postMessage({ type: "BOOKSTORE_SSO_TOKEN", idToken }, targetOrigin);
+    document.body.innerHTML = '<main style="font-family:system-ui;display:grid;place-items:center;min-height:100vh;text-align:center;padding:24px"><div><h2>Connected to Shiva AI</h2><p>You can return to Shiva AI now.</p></div></main>';
+    window.close();
+  } catch (error) {
+    console.error("Could not connect BOOKStore to Shiva AI:", error);
+    shivaSsoSent = false;
+  }
 }
 
+/* AUTO LOGIN CHECK */
+onAuthStateChanged(auth, async (user) => {
+  if (!user) return;
+
+  if (isShivaSsoRequest) {
+    await saveUserToDatabase(user);
+    await sendBookstoreSessionToShiva(user);
+    return;
+  }
+
+  window.location.replace("home.html");
+  saveUserToDatabase(user);
 });
+
 function showLoginError(message){
 
 const box=document.getElementById("loginAlert");
@@ -534,7 +564,7 @@ const user=userCredential.user;
 
 set(ref(db,"users/"+user.uid+"/lastSeen"),Date.now());
 
-window.location.href="home.html";
+if (!isShivaSsoRequest) window.location.href="home.html";
 
 })
 
@@ -566,7 +596,7 @@ googleBtn.onclick = () => {
 
     await saveUserToDatabase(user);
 
-    window.location.href = "home.html";
+    if (!isShivaSsoRequest) window.location.href = "home.html";
 
   })
   .catch((error) => {
