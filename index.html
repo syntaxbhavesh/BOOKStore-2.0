@@ -482,20 +482,50 @@ async function saveUserToDatabase(user){
   }
 
 }
-/* AUTO LOGIN CHECK */
+/* Shiva AI account sync: send a BOOKStore Firebase ID token only to the trusted Shiva AI opener. */
+const isShivaSso = new URLSearchParams(window.location.search).get("shiva_sso") === "1";
+const shivaSsoOrigins = new Set([
+  "https://shiva-bookstore.vercel.app",
+  "https://shiva-ai-git-main-syntaxbhavesh.vercel.app",
+  "https://shiva-ai.vercel.app"
+]);
 
-onAuthStateChanged(auth,(user)=>{
-
-if(user){
-
-// redirect instantly
-window.location.replace("home.html");
-
-// save user data in background (no waiting)
-saveUserToDatabase(user);
-
+function getShivaSsoOrigin() {
+  if (!isShivaSso || !window.opener || window.opener.closed) return null;
+  try {
+    const origin = new URL(document.referrer).origin;
+    return shivaSsoOrigins.has(origin) ? origin : null;
+  } catch {
+    return null;
+  }
 }
 
+async function sendBookstoreTokenToShiva(user) {
+  const targetOrigin = getShivaSsoOrigin();
+  if (!targetOrigin) {
+    showLoginError("Could not verify the Shiva AI window. Close this popup and start Sync BOOKStore Account again from Shiva AI.");
+    return false;
+  }
+  const idToken = await user.getIdToken(true);
+  window.opener.postMessage({ type: "BOOKSTORE_SSO_TOKEN", idToken }, targetOrigin);
+  window.close();
+  return true;
+}
+
+/* AUTO LOGIN CHECK */
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    if (isShivaSso) {
+      void saveUserToDatabase(user);
+      await sendBookstoreTokenToShiva(user);
+      return;
+    }
+    window.location.replace("home.html");
+    void saveUserToDatabase(user);
+  } else if (isShivaSso) {
+    // Show the usual login dialog in the SSO popup; auth listener sends token after sign-in.
+    openLogin();
+  }
 });
 function showLoginError(message){
 
@@ -534,7 +564,7 @@ const user=userCredential.user;
 
 set(ref(db,"users/"+user.uid+"/lastSeen"),Date.now());
 
-window.location.href="home.html";
+if (!isShivaSso) if (!isShivaSso) window.location.href="home.html";
 
 })
 
@@ -566,7 +596,7 @@ googleBtn.onclick = () => {
 
     await saveUserToDatabase(user);
 
-    window.location.href = "home.html";
+    if (!isShivaSso) window.location.href = "home.html";
 
   })
   .catch((error) => {
